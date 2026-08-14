@@ -1,0 +1,11 @@
+toc#IsAvailable()	toc.txt	/*toc#IsAvailable()*
+toc#Open()	toc.txt	/*toc#Open()*
+toc-:Toc	toc.txt	/*toc-:Toc*
+toc-add-collector	toc.txt	/*toc-add-collector*
+toc-configuration	toc.txt	/*toc-configuration*
+toc-folding	toc.txt	/*toc-folding*
+toc-indent	toc.txt	/*toc-indent*
+toc-mappings	toc.txt	/*toc-mappings*
+toc-overview	toc.txt	/*toc-overview*
+toc-resolution	toc.txt	/*toc-resolution*
+toc.txt	toc.txt	/*toc.txt*
