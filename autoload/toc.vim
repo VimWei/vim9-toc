@@ -35,6 +35,7 @@ const HELP_TEXT: list<string> =<< trim END
     H      collapse one level
     L      expand one level
     z      redraw menu with selected entry at center
+    /      look for given text with fuzzy algorithm
 
     <C-D>      scroll down half a page
     <C-U>      scroll up half a page
@@ -50,10 +51,17 @@ const HELP_TEXT: list<string> =<< trim END
         34  index of last entry
          5  index of deepest level currently visible
          6  index of maximum possible level
+
+    tip
+    ───
+    after inserting a pattern to look for with the / command,
+    if you press <Esc> instead of <CR>, you can then get
+    more context for each remaining entry by pressing J or K
 END
 
 # 会话状态（popup 为阻塞式，同一时刻仅一个 TOC 弹出，脚本局部即可）
 var toc_all_entries: list<dict<any>> = []
+var toc_fuzzy_entries: list<dict<any>> = null_list
 var toc_curlvl: number = 0
 var toc_maxlvl: number = 0
 var toc_width: number = 30
@@ -79,6 +87,7 @@ export def Open()
         return
     endif
     toc_all_entries = entries
+    toc_fuzzy_entries = null_list
     toc_maxlvl = MaxLevel(entries)
     toc_curlvl = toc_maxlvl
     OpenPopup()
@@ -295,12 +304,20 @@ def ApplyTocSyntax(winid: number)
 enddef
 
 def GetVisibleEntries(): list<dict<any>>
+    if toc_fuzzy_entries != null_list
+        return toc_fuzzy_entries
+    endif
     return toc_all_entries
         ->copy()
         ->filter((_, e: dict<any>): bool => e.lvl <= toc_curlvl)
 enddef
 
-def BuildTexts(entries: list<dict<any>>): list<string>
+def BuildTexts(entries: list<dict<any>>): list<any>
+    if toc_fuzzy_entries != null_list
+        return entries->get(0, {})->has_key('props')
+            ? entries
+            : entries->copy()->map((_, e: dict<any>): string => e.text)
+    endif
     var texts: list<string> = []
     for e in entries
         texts->add(repeat(g:toc_level_indicator, max([e.lvl - 1, 0])) .. e.text)
@@ -362,7 +379,107 @@ def Filter(winid: number, key: string): bool
         Win_execute(help_winid, 'normal! ' .. scroll_cmd)
         return true
     endif
+    if key == '/'
+        DisplayNonFuzzyToc(winid)
+        [{
+            group: 'Toc',
+            event: 'CmdlineChanged',
+            pattern: '@',
+            cmd: $'FuzzySearch({winid})',
+            replace: true,
+        }, {
+            group: 'Toc',
+            event: 'CmdlineLeave',
+            pattern: '@',
+            cmd: 'TearDown()',
+            replace: true,
+        }]->autocmd_add()
+        var input_mappings: list<string> =<< trim eval END
+          cnoremap <buffer><nowait> <Down> <ScriptCmd>Filter({winid}, 'j')<CR>
+          cnoremap <buffer><nowait> <Up> <ScriptCmd>Filter({winid}, 'k')<CR>
+          cnoremap <buffer><nowait> <C-N> <ScriptCmd>Filter({winid}, 'j')<CR>
+          cnoremap <buffer><nowait> <C-P> <ScriptCmd>Filter({winid}, 'k')<CR>
+        END
+        input_mappings->execute()
+        var look_for: string
+        try
+            popup_setoptions(winid, {mapping: true})
+            look_for = input('look for: ', '', $'custom,{Complete->string()}')
+                | redraw
+                | echo ''
+        catch /Vim:Interrupt/
+            TearDown()
+        finally
+            popup_setoptions(winid, {mapping: false})
+        endtry
+        return look_for == '' ? true : popup_filter_menu(winid, "\<CR>")
+    endif
     return popup_filter_menu(winid, key)
+enddef
+
+def FuzzySearch(winid: number)
+    FuzzyMatch(winid, getcmdline())
+enddef
+
+export def FuzzyMatch(winid: number, look_for: string)
+    if look_for == ''
+        DisplayNonFuzzyToc(winid)
+        return
+    endif
+    var display: list<dict<any>> = toc_all_entries
+        ->copy()
+        ->map((_, e: dict<any>): dict<any> => ({
+            lnum: e.lnum,
+            lvl: e.lvl,
+            text: repeat(g:toc_level_indicator, max([e.lvl - 1, 0])) .. e.text,
+        }))
+    var matches: list<list<any>> = display->matchfuzzypos(look_for, {key: 'text'})
+    var entries: list<dict<any>> = matches->get(0, [])
+    var pos: list<list<number>> = matches->get(1, [])
+    if !has('textprop')
+        toc_fuzzy_entries = entries
+    else
+        var buf = winid->winbufnr()
+        if prop_type_get('toc-fuzzy', {bufnr: buf}) == {}
+            prop_type_add('toc-fuzzy', {bufnr: buf, combine: false, highlight: 'IncSearch'})
+        endif
+        toc_fuzzy_entries = entries->map((i: number, e: dict<any>): dict<any> => ({
+            text: e.text,
+            lnum: e.lnum,
+            lvl: e.lvl,
+            props: pos[i]->copy()->map((_, col: number): dict<any> => ({
+                col: col + 1,
+                length: 1,
+                type: 'toc-fuzzy',
+            })),
+        }))
+    endif
+    popup_settext(winid, BuildTexts(toc_fuzzy_entries))
+    Win_execute(winid, 'normal! 1Gzt')
+    SetTitle(winid)
+enddef
+
+def DisplayNonFuzzyToc(winid: number)
+    toc_fuzzy_entries = null_list
+    popup_settext(winid, BuildTexts(GetVisibleEntries()))
+    SetTitle(winid)
+enddef
+
+def TearDown()
+    autocmd_delete([{group: 'Toc'}])
+    silent! cunmap <buffer> <Down>
+    silent! cunmap <buffer> <Up>
+    silent! cunmap <buffer> <C-N>
+    silent! cunmap <buffer> <C-P>
+enddef
+
+def Complete(..._): string
+    return toc_all_entries
+        ->copy()
+        ->map((_, e: dict<any>): string => e.text)
+        ->sort()
+        ->uniq()
+        ->join("\n")
 enddef
 
 def Callback(winid: number, choice: number): void
@@ -461,7 +578,12 @@ def CollapseOrExpand(winid: number, key: string)
 enddef
 
 def SetTitle(winid: number)
-    popup_setoptions(winid, {title: MakeTitle(line('.', winid), line('$', winid))})
+    var curlnum: number = line('.', winid)
+    var lastlnum: number = line('$', winid)
+    if lastlnum == 1 && winbufnr(winid)->getbufoneline(1) == ''
+        [curlnum, lastlnum] = [0, 0]
+    endif
+    popup_setoptions(winid, {title: MakeTitle(curlnum, lastlnum)})
 enddef
 
 def MakeTitle(curlnum: number, lastlnum: number): string

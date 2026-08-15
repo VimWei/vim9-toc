@@ -28,12 +28,18 @@ Resolution order (highest priority first):			*toc-resolution*
 							*toc-:Toc*
 							*toc#Open()*
 							*toc#IsAvailable()*
+							*toc#FuzzyMatch()*
 The :Toc command takes no arguments.  It may be mapped for easier use, e.g.: >
 
 	nnoremap <Leader>ht <Cmd>Toc<CR>
 <
 toc#Open() is the underlying function.  toc#IsAvailable() returns true when the
 current buffer has a usable 'foldmethod' and popup support.
+
+toc#FuzzyMatch({winid}, {text}) filters the popup to the entries that
+fuzzy-match {text}, highlighting each matched character; an empty {text}
+restores the unfiltered view.  It is invoked by the / key and is exposed for
+programmatic use and testing.
 
 1.1 Popup mappings						*toc-mappings*
 
@@ -49,10 +55,17 @@ Inside the TOC popup:
 	<C-D> / <C-U>	scroll down / up half a page
 	<PageDown> / <PageUp>  scroll down / up a whole page
 	z		redraw with the selected entry centered
+	/		look for given text with fuzzy algorithm
 	?		show / hide the help window
 	<C-J> / <C-K>	scroll the help window down / up one line
 	<Enter>		jump the main buffer to the selected entry and close
 	<Esc>		close the popup without jumping
+
+The / key starts a fuzzy search: it prompts for text and, as you type, filters
+the entries to those whose text contains the characters in order, highlighting
+each matched character.  Press <Enter> to jump to the first match and close,
+or <Esc> to keep the filtered view open (you can then inspect each remaining
+entry's context with J / K).  An empty pattern restores the unfiltered view.
 
 The popup title shows the current entry index and total entries, followed by
 the current level and maximum level, e.g. " 2/3 (1/2)", with a

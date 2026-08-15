@@ -70,3 +70,16 @@ def g:GetTocTitle(): string
     endfor
     return ''
 enddef
+
+# 调用 toc#Open() 后执行 toc#FuzzyMatch 过滤，返回 popup 内容并清理
+def g:GetFuzzyContent(query: string): list<string>
+    g:CloseAllPopups()
+    toc#Open()
+    var lines: list<string> = []
+    for id in popup_list()
+        toc#FuzzyMatch(id, query)
+        lines->extend(getbufline(winbufnr(id), 1, '$'))
+    endfor
+    g:CloseAllPopups()
+    return lines
+enddef

@@ -14,7 +14,7 @@
 | `autoload/toc.vim` | All logic: dispatcher, collectors, popup navigation |
 | `doc/toc.txt` | Help doc (`:help toc`) |
 | `doc/TESTING.md` | Test guide (zero-dependency, `assert_*` + `v:errors`) |
-| `test/` | Test infrastructure and test groups (`test-collectors/`, `test-dispatch/`) |
+| `test/` | Test infrastructure and test groups (`test-collectors/`, `test-dispatch/`, `test-filter/`) |
 
 ## External dependencies
 - **Built-in helptoc** (`$VIMRUNTIME/pack/dist/opt/helptoc`) — delegated to for
@@ -31,15 +31,17 @@
 - **Collector contract**: a function name (String) taking no args, returning a
   list of `{lnum, lvl, text}` dicts (`lvl` starts at 1). Registered via
   `toc#AddCollector(ft, fn)`; takes precedence over folding for its filetype.
-- **Public API**: `toc#Open()`, `toc#IsAvailable()`, `toc#AddCollector(ft, fn)`.
+- **Public API**: `toc#Open()`, `toc#IsAvailable()`, `toc#AddCollector(ft, fn)`,
+  `toc#FuzzyMatch(winid, text)`.
 
 ## Conventions
 - Config via `g:toc_level_indicator` (default `'| '`) and `g:toc_use_helptoc`
   (default `1`).
 - Popup mappings: `j/k/<Down>/<Up>` move, `J/K` move + jump buffer, `gg/<Home>`
   first entry, `G/<End>` last entry, `H/L` collapse/expand level,
-  `<C-D>/<C-U>/<PageDown>/<PageUp>` scroll, `z` center, `?` toggle help window,
-  `<C-J>/<C-K>` scroll help window, `<Enter>` jump+close, `<Esc>` close. The
+  `<C-D>/<C-U>/<PageDown>/<PageUp>` scroll, `z` center, `/` fuzzy search,
+  `?` toggle help window, `<C-J>/<C-K>` scroll help window, `<Enter>` jump+close,
+  `<Esc>` close. The
   navigation keys mirror helptoc's `Filter()`; the title right-aligned hint is
   "press ? for help ".
 - Fold collectors read `'foldmethod'` directly — never mutate the buffer's fold
@@ -63,6 +65,13 @@
   the popup buffer — the level indicator is linked to `NonText` (dim), the text
   to `Normal` — matching helptoc's `SanitizedTocSyntax()`. It runs right after
   `popup_menu()` (which returns the winid immediately, not blocking).
+- **Fuzzy search** (`/`): mirrors helptoc's `FuzzySearch()` — `autocmd_add`
+  (`CmdlineChanged`→`FuzzySearch`, `CmdlineLeave`→`TearDown`) + cmdline
+  `<buffer>` mappings + `input()` with `custom,{Complete->string()}` completion,
+  then `matchfuzzypos()` + textprops (`toc-fuzzy`, `IncSearch`) for the match
+  highlight. The `col + 1`/`length: 1` prop math is kept identical to helptoc
+  (multibyte chars are misaligned; tracked upstream — do not "fix" unilaterally,
+  sync when upstream helptoc fixes it).
 
 ## Testing
 - **Runners**: `make test` (from `test/`, Linux/macOS/Git Bash),
@@ -80,6 +89,8 @@
     JSON syntax siblings), indentation fallback, custom collector
   - `test-dispatch/`: `IsAvailable`, `AddCollector`, collector-over-fold
     priority, no-outline, title format, helptoc delegation
+  - `test-filter/`: `/` fuzzy search (single/multiple match, empty query
+    restores full view, no match)
 
 ## Gotchas
 - helptoc delegation emits a harmless `pack/*/start/helptoc` not-found message
