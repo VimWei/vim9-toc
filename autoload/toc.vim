@@ -447,9 +447,9 @@ export def FuzzyMatch(winid: number, look_for: string)
             text: e.text,
             lnum: e.lnum,
             lvl: e.lvl,
-            props: pos[i]->copy()->map((_, col: number): dict<any> => ({
-                col: col + 1,
-                length: 1,
+            props: pos[i]->copy()->map((_, cp: number): dict<any> => ({
+                col: byteidx(e.text, cp) + 1,
+                length: byteidx(e.text, cp + 1) - byteidx(e.text, cp),
                 type: 'toc-fuzzy',
             })),
         }))

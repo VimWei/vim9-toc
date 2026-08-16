@@ -32,11 +32,20 @@ def Test_fuzzy_no_match()
     assert_equal([''], g:GetFuzzyContent('zzz'))
 enddef
 
+def Test_fuzzy_multibyte_props()
+    setlocal foldmethod=expr
+    setlocal foldexpr=TocTestTomlFold(v:lnum)
+    setline(1, ['[中文标题]'])
+    # 匹配 '标' '题'：字符索引 3/4 → 字节列 8/11，每字 3 字节
+    assert_equal([{col: 8, length: 3}, {col: 11, length: 3}], g:GetFuzzyProps('标题'))
+enddef
+
 # --- 报告 ---
 g:RunTestInBuffer(function('Test_fuzzy_filter_single_match'))
 g:RunTestInBuffer(function('Test_fuzzy_filter_multiple_matches'))
 g:RunTestInBuffer(function('Test_fuzzy_empty_query_restores_full'))
 g:RunTestInBuffer(function('Test_fuzzy_no_match'))
+g:RunTestInBuffer(function('Test_fuzzy_multibyte_props'))
 
 if len(v:errors) > 0
     for err in v:errors

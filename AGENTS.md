@@ -69,9 +69,11 @@
   (`CmdlineChanged`→`FuzzySearch`, `CmdlineLeave`→`TearDown`) + cmdline
   `<buffer>` mappings + `input()` with `custom,{Complete->string()}` completion,
   then `matchfuzzypos()` + textprops (`toc-fuzzy`, `IncSearch`) for the match
-  highlight. The `col + 1`/`length: 1` prop math is kept identical to helptoc
-  (multibyte chars are misaligned; tracked upstream — do not "fix" unilaterally,
-  sync when upstream helptoc fixes it).
+  highlight. `matchfuzzypos()` returns match positions as *character* indices,
+  but text prop `col`/`length` are counted in *bytes* — so the props are built
+  with `byteidx()` (char index → byte offset) and the byte length of each matched
+  char (`byteidx(cp + 1) - byteidx(cp)`).  This mirrors the upstream helptoc fix
+  (vim/vim#21056) for multibyte text.
 
 ## Testing
 - **Runners**: `make test` (from `test/`, Linux/macOS/Git Bash),

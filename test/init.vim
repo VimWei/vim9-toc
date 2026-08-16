@@ -83,3 +83,24 @@ def g:GetFuzzyContent(query: string): list<string>
     g:CloseAllPopups()
     return lines
 enddef
+
+# 调用 toc#Open() 后执行 toc#FuzzyMatch 过滤，返回 popup buffer 上
+# 'toc-fuzzy' textprop 的 {col, length}（按行顺序），并清理 popup
+def g:GetFuzzyProps(query: string): list<dict<number>>
+    g:CloseAllPopups()
+    toc#Open()
+    var props: list<dict<number>> = []
+    for id in popup_list()
+        var buf = winbufnr(id)
+        toc#FuzzyMatch(id, query)
+        for lnum in range(1, line('$', id))
+            for p in prop_list(lnum, {bufnr: buf})
+                if p.type == 'toc-fuzzy'
+                    props->add({col: p.col, length: p.length})
+                endif
+            endfor
+        endfor
+    endfor
+    g:CloseAllPopups()
+    return props
+enddef
